@@ -21,18 +21,20 @@ with tabs[0]:
 **질문.** 간섭 효과(불일치 RT − 일치 RT)를 *한 사람*에 대해 안정적으로 재려면 시행이 몇 개 필요한가?
 그리고 점수의 차이는 *사람 간 차이*인가, 같은 사람의 *날마다의 변동*인가?""")
     thr = st.slider("목표 신뢰도", 0.6, 0.95, 0.8, 0.05)
-    def k_at(task, thr=0.8):
+    def k_at(task, thr=0.8, col="r_sb"):
+        """신뢰도가 thr에 처음 닿는 조건당 총 시행 수(두 절반 합 = 2k). 격자 사이는 선형 보간."""
         s = split[split.task == task].sort_values("k")
-        k, r = s.k.values, s.r_sb.values
+        k, r = s.k.values, s[col].values
         for i in range(1, len(k)):
             if r[i] >= thr > r[i - 1]:
-                return int(round(k[i - 1] + (thr - r[i - 1]) / (r[i] - r[i - 1]) * (k[i] - k[i - 1])))
+                return int(round(2 * (k[i - 1] + (thr - r[i - 1]) / (r[i] - r[i - 1]) * (k[i] - k[i - 1]))))
         return None
     c = st.columns(3)
     for col, tk in zip(c, ["flanker", "primeprobe", "stroop"]):
-        v = k_at(tk, thr)
-        col.metric(f"{TASK_KO[tk]}: 필요 시행 수", f"약 {v}개" if v else "—")
-    st.caption(f"신뢰도 {thr:.2f}에 도달하는 조건당 시행 수(절반당, 격자 사이는 선형 보간).")
+        v, vl = k_at(tk, thr), k_at(tk, thr, "sb_lo")
+        col.metric(f"{TASK_KO[tk]}: 필요한 조건당 총 시행", f"약 {v}개" if v else "—")
+        col.caption(f"불확실성 하한까지 고려하면 약 {vl}개" if vl else "하한 기준은 이 격자에서 도달하지 않음")
+    st.caption(f"신뢰도 {thr:.2f}에 도달하는 조건당 총 시행 수(두 절반 합계). 위 숫자는 300회 반복의 평균 기준이고, 작은 글씨는 2.5% 하한 기준입니다.")
     st.info("신뢰도는 사람 간 순위를 얼마나 일관되게 재현하느냐(분할-절반, Spearman-Brown 보정)이며, 시행 수가 적을수록 급격히 낮아집니다.")
 
 with tabs[1]:
@@ -43,7 +45,7 @@ with tabs[1]:
     f.add_trace(go.Scatter(x=s.k, y=s.sb_lo, fill="tonexty", line=dict(width=0), name="2.5–97.5% 반복 범위"))
     f.add_trace(go.Scatter(x=s.k, y=s.r_sb, mode="lines+markers", name="평균 신뢰도"))
     f.add_hline(y=0.8, line_dash="dot")
-    f.update_xaxes(type="log", title="조건당 시행 수 (절반당)"); f.update_yaxes(range=[-1.5, 1], title="분할-절반 신뢰도")
+    f.update_xaxes(type="log", title="조건당 시행 수 (절반당 k, 전체는 2k)"); f.update_yaxes(range=[-1.5, 1], title="신뢰도 (Spearman-Brown, 전체 2k 기준)")
     st.plotly_chart(f, use_container_width=True)
     st.caption("주의: 큰 k에서는 같은 시행 풀에서 반복 추출하므로 반복 간 독립성이 약해져 범위가 좁게 보일 수 있습니다.")
     p = prec[prec.task == task]
@@ -125,7 +127,7 @@ EPIC "Precise Individual Measures of Inhibitory Control" (OSF: jk9nb). 참가자
 - Go/No-Go: false alarm = No-Go에서 반응한 비율, Go RT = Go 정답 시행의 평균 RT.
 
 ### 분석 방법
-- **신뢰도(②탭):** 사람별로 세션을 합친 시행에서 조건당 2k개를 무작위 추출해 둘로 나눠 간섭 효과를 구하고, 9명 간 상관을 300회 반복 평균(Spearman-Brown 보정).
+- **신뢰도(②탭):** 사람별로 세션을 합친 시행에서 조건당 2k개를 무작위 추출해 둘로 나눠 간섭 효과를 구하고, 9명 간 상관을 300회 반복 평균(Spearman-Brown 보정). 그래프의 가로축 k는 절반당 시행 수이며, 보정된 신뢰도는 두 절반을 합친 2k 기준입니다. ①탭의 '필요한 조건당 총 시행'은 이 2k 값입니다. 0.8은 개인 수준 해석에 흔히 쓰는 관례적 기준이며, 슬라이더로 바꿀 수 있습니다.
 - **ICC(③탭):** 세션 수준 효과로 비균형 ICC(1)을 구하고 참가자 부트스트랩(500회)으로 95% 구간 추정.
 - **연습 효과 보정(③탭):** 사람별로 세션 번호에 대한 선형 추세를 제거한 뒤 ICC 재계산. 비선형 학습은 남을 수 있음.
 - **Go/No-Go(④탭):** 사람 간 상관(평균값 간)과 사람 내 상관(세션 간)을 따로 계산.
